@@ -1,0 +1,73 @@
+## namespace creation
+---
+apiVersion: v1 
+kind: Namespace
+metadata:
+  name: northwind-ns 
+  labels: 
+    app: northwind
+
+## secret creation
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: northwind-sec
+  namespace: northwind-ns # need to specify namespace
+  labels:
+    app: northwind
+
+data: 
+  MYSQL_ROOT_PASSWORD: Y2hhbmdlaXQ=
+
+## deployment creation
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: nwdb-dep
+  namespace: northwind-ns
+  labels:
+    app: northwind
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: northwind
+  
+  ## pod creation as part of deployment
+  template:
+    metadata:
+      name: nwdb-pod
+      labels:
+        app: northwind
+    spec:
+      containers:
+      - name: nwdb-container
+        image: stackupiss/northwind-db:v1
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - secretRef:
+            name: northwind-sec
+        ports:
+        - name: nwdb-port
+          containerPort: 3306
+
+## service creation
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nwdb-svc
+  namespace: northwind-ns
+  labels:
+    app: northwind
+
+spec:
+  type: ClusterIP
+  selector:
+    app: northwind
+  ports:
+  - port: 3306
+    targetPort: nwdb-port

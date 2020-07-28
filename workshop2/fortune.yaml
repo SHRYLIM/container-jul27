@@ -1,0 +1,60 @@
+## namespace creation
+--- # indicates start of a new file
+# get the fields from kubernetes documentation reference 
+apiVersion: v1 # if group is core, don't write core
+kind: Namespace
+metadata:
+  name: fortune-ns # name of namespace
+  labels: # can have anything you want
+    app: fortune
+    version: v1
+
+## deployment creation
+---
+apiVersion: apps/v1 # need apps because group is not core
+kind: Deployment
+metadata:
+  name: fortune-deploy
+  namespace: fortune-ns
+  labels:
+    app: fortune
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fortune-pod # match the labels of the pods
+  
+  ## pod creation as part of deployment
+  template:
+    metadata:
+      name: fortune-pod
+      labels: # deployment recognises its own pods through labels
+        app: fortune-pod
+    spec:
+      containers:
+      - name: fortune-container
+        image: chukmunnlee/fortune:v1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+          # name: for-port
+
+## service creation
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fortune-svc
+  namespace: fortune-ns
+  labels:
+    app: fortune
+
+spec:
+  type: LoadBalancer
+  selector: 
+    app: fortune-pod # when traffic comes in, route to this group of pods
+  ports:
+  - name: for-svc-port
+    port: 80 # 80 is external world port
+    targetPort: 3000 # can put "for-port" if the pod port was given the name "for-port" above

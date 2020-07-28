@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fortune-pod
+  # namespace: fortune-ns #provision to fortune namespace
+  labels:
+    app: fortune
+    version: v1
+
+spec:
+  containers:
+  - name: fortune-container # - to specify array
+    image: chukmunnlee/fortune:v1 # every item in the array must align in the column
+    imagePullPolicy: IfNotPresent
+    ports:
+    # if container exposes more than one port, specify more ports in the array below
+    - containerPort: 3000
