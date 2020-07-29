@@ -1,0 +1,12 @@
+## ingress controller creation
+controller:
+    publishedService:
+        enabled: true
+
+defaultBackend:
+    enabled: true
+    image:
+        repository: chukmunnlee/ingress_default_backend
+        tag: v1
+    port: 3000
+# create a namespace "nginx-ingress" and store the ingress controller in that namespace

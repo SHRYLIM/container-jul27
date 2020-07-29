@@ -1,0 +1,43 @@
+## deployment creation
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: nwapp-dep
+  namespace: northwind-ns
+  labels:
+    app: northwind
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nwapp-pod
+  
+  ## pod creation as part of deployment
+  template:
+    metadata:
+      name: nwapp-pod
+      labels:
+        app: nwapp-pod 
+    spec:
+      containers:
+      - name: nwapp-container
+        image: stackupiss/northwind-app:v2
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DB_PASSWORD 
+          valueFrom:
+            secretKeyRef:
+              name: northwind-sec # previously created secret environment
+              key: MYSQL_ROOT_PASSWORD
+        - name: INSTANCE_IP_ADDRESS
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        envFrom:
+        - configMapRef:
+            name: nwapp-cm
+        ports:
+        - name: nwapp-port
+          containerPort: 3000

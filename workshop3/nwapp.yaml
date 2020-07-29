@@ -1,0 +1,131 @@
+## configmap creation
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nwapp-cm
+  namespace: northwind-ns
+  labels:
+    app: northwind
+
+data:
+  DB_USER: root
+  DB_HOST: nwdb-svc.northwind-ns.svc.cluster.local # possible to reference service from another namespace
+
+## deployment creation
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: nwapp-dep
+  namespace: northwind-ns
+  labels:
+    app: northwind
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nwapp-pod
+  
+  ## pod creation as part of deployment
+  template:
+    metadata:
+      name: nwapp-pod
+      labels:
+        app: nwapp-pod 
+    spec:
+      containers:
+      - name: nwapp-container
+        image: chukmunnlee/my-nwapp:v1
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "16Mi"
+          limits:
+            memory: "32Mi"
+        env:
+        - name: DB_PASSWORD 
+          valueFrom:
+            secretKeyRef:
+              name: northwind-sec # previously created secret environment
+              key: MYSQL_ROOT_PASSWORD
+        - name: INSTANCE_IP_ADDRESS
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        envFrom:
+        - configMapRef:
+            name: nwapp-cm
+        ports:
+        - name: nwapp-port
+          containerPort: 3000
+
+## service creation
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nwapp-svc
+  namespace: northwind-ns # not good idea to put namespace here, better to just declare when doing kubectl apply
+  labels:
+    app: northwind
+
+spec:
+  type: ClusterIP # LoadBalancer
+  selector: 
+    app: nwapp-pod # when traffic comes in, route to this group of pods
+  ports:
+  - name: nwapp-svc-port
+    port: 3000 
+    targetPort: nwapp-port
+
+## ingress creation
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: nwapp-ing
+  labels:
+    app: northwind
+spec:
+  rules: # rules is an array
+  - host: northwind.167.172.5.4.nip.io # nip.io fakes the sub-domain name / virtual host
+    http:
+      paths:
+      - path: / # prefix match i.e. anything that starts with /
+        backend:
+          serviceName: nwapp-svc
+          servicePort: nwapp-svc-port
+          
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nwapp-hpa
+  labels:
+    app: northwind
+
+spec:
+  minReplicas: 1 # bring down to 1
+  maxReplicas: 4 # or bring up to 4
+
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nwapp-dep # this is what we are scaling
+  
+  metrics:
+  - type: Resource
+    resource: 
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Resource
+    resource: 
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 15 # don't put 99% because need some time to kick in

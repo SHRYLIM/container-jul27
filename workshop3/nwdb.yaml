@@ -1,0 +1,100 @@
+## namespace creation
+---
+apiVersion: v1 
+kind: Namespace
+metadata:
+  name: northwind-ns 
+  labels: 
+    app: northwind
+
+## secret creation
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: northwind-sec
+  namespace: northwind-ns # need to specify namespace
+  labels:
+    app: northwind
+
+data: 
+  MYSQL_ROOT_PASSWORD: Y2hhbmdlaXQ=
+
+## deployment creation
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: nwdb-dep
+  namespace: northwind-ns
+  labels:
+    app: northwind
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: northwind
+  
+  ## pod creation as part of deployment
+  template:
+    metadata:
+      name: nwdb-pod
+      labels:
+        app: northwind
+    spec:   
+      ## volume creation
+      volumes:
+      - name: nwdb-vol
+        persistentVolumeClaim: 
+          claimName: nwdb-pvc
+      - name: share-dir
+        emptyDir: {}
+      # mount the volume
+      initContainers:
+        - name: busybox # busybox is a shell
+          image: busybox # popular image, just a shard to run stuff
+          volumeMounts:
+          - name: nwdb-vol # as created above
+            mountPath: /scrub
+          - name: share-dir
+            mountPath: /tmp/share
+          command:
+          # /bin/sh -c "..."
+          - /bin/sh
+          - -c
+          # mount the pvc /scrub > delete every file in /scrub > unmount /scrub > exit
+          - "test -e /scrub && rm -rf /scrub/..?* /scrub/.[!.]* /scrub/* && test -z \"$(ls -A /scrub)\" || exit 1"
+      ## container creation
+      containers:
+      - name: nwdb-container
+        image: stackupiss/northwind-db:v1
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - secretRef:
+            name: northwind-sec
+        ports:
+        - name: nwdb-port
+          containerPort: 3306
+        
+        volumeMounts:
+        - name: nwdb-vol
+          mountPath: /var/lib/mysql
+
+## service creation
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nwdb-svc
+  namespace: northwind-ns
+  labels:
+    app: northwind
+
+spec:
+  type: ClusterIP
+  selector:
+    app: northwind
+  ports:
+  - port: 3306
+    targetPort: nwdb-port

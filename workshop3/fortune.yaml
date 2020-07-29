@@ -1,0 +1,78 @@
+## namespace creation
+--- # indicates start of a new file
+# get the fields from kubernetes documentation reference 
+apiVersion: v1 # if group is core, don't write core
+kind: Namespace
+metadata:
+  name: fortune-ns # name of namespace
+  labels: # can have anything you want
+    app: fortune
+    version: v1
+
+## deployment creation
+---
+apiVersion: apps/v1 # need apps because group is not core
+kind: Deployment
+metadata:
+  name: fortune-deploy
+  namespace: fortune-ns
+  labels:
+    app: fortune
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fortune-pod # match the labels of the pods
+  
+  ## pod creation as part of deployment
+  template:
+    metadata:
+      name: fortune-pod
+      labels: # deployment recognises its own pods through labels
+        app: fortune-pod
+    spec:
+      containers:
+      - name: fortune-container
+        image: chukmunnlee/fortune:v1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: for-port
+          containerPort: 3000
+
+## service creation
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fortune-svc
+  namespace: fortune-ns
+  labels:
+    app: fortune
+
+spec:
+  type: ClusterIP
+  selector: 
+    app: fortune-pod # when traffic comes in, route to this group of pods
+  ports:
+  - name: for-svc-port
+    port: 3000 
+    targetPort: for-port
+
+## ingress creation
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: fortune-ing
+  labels:
+    app: fortune
+spec:
+  rules: # rules is an array
+  - host: fortune.167.172.5.4.nip.io # 167.172.6.189; nip.io fakes the domain name / virtual host
+    http:
+      paths:
+      - path: / # prefix match i.e. anything that starts with /
+        backend:
+          serviceName: fortune-svc
+          servicePort: for-svc-port

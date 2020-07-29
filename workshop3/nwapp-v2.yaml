@@ -1,0 +1,82 @@
+## deployment creation
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: nwappv2-dep
+  namespace: northwind-ns
+  labels:
+    app: northwind
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nwappv2-pod
+  
+  ## pod creation as part of deployment
+  template:
+    metadata:
+      name: nwappv2-pod
+      labels:
+        app: nwappv2-pod 
+    spec:
+      containers:
+      - name: nwapp-container
+        image: stackupiss/northwind-app:v2
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DB_PASSWORD 
+          valueFrom:
+            secretKeyRef:
+              name: northwind-sec # previously created secret environment
+              key: MYSQL_ROOT_PASSWORD
+        - name: INSTANCE_IP_ADDRESS
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        envFrom:
+        - configMapRef:
+            name: nwapp-cm
+        ports:
+        - name: nwappv2-port
+          containerPort: 3000
+
+## service creation
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nwappv2-svc
+  namespace: northwind-ns # not good idea to put namespace here, better to just declare when doing kubectl apply
+  labels:
+    app: northwind
+
+spec:
+  type: ClusterIP # LoadBalancer
+  selector: 
+    app: nwappv2-pod # when traffic comes in, route to this group of pods
+  ports:
+  - port: 3000 
+    targetPort: nwappv2-port
+
+## ingress creation
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: nwappv2-ing
+  labels:
+    app: northwind
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "50"
+spec:
+  rules: # rules is an array
+  - host: northwind.167.172.5.4.nip.io # nip.io fakes the sub-domain name / virtual host
+    http:
+      paths:
+      - path: / # prefix match i.e. anything that starts with /
+        backend:
+          serviceName: nwappv2-svc
+          servicePort: 3000
