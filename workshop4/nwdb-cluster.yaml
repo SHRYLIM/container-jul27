@@ -1,0 +1,20 @@
+---
+# to get the following, do kubectl api-resources | grep mysql
+apiVersion: mysql.presslabs.org/v1alpha1 # custom resource - comes from operator
+kind: MysqlCluster # custom resource - comes from operator
+metadata:
+  name: nwdb-cluster
+  namespace: nw
+  labels:
+    app: northwind
+
+spec:
+  replicas: 2
+  secretName: mysql-secret
+  persistentVolumeClaims:
+    accessModes:
+    - ReadWriteOnce # relational database so can only have one person writing
+    resources:
+      requests:
+        storage: 10Gi
+      storageClassName: do-block-storage # to get this, do kubectl get sc
